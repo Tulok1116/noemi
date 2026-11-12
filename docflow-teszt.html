@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DocFlow tesztoldal</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#1c2430; --muted:#5b6675; --line:#d5dae1; --accent:#1f5eff; --ok:#12805c; --err:#b42318; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14181f; --card:#1c222c; --text:#e8ecf2; --muted:#9aa5b5; --line:#2f3846; --accent:#6c9bff; --ok:#43c99a; --err:#ff8a7a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px 48px; background:var(--bg); color:var(--text); font:16px/1.5 system-ui, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; display: grid; gap: 20px; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  p { margin: 0; color: var(--muted); }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; }
+  label { display:block; font-size:.9rem; margin:10px 0 4px; }
+  input, textarea { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); font:inherit; }
+  textarea { min-height: 80px; resize: vertical; }
+  button { padding:9px 14px; border:1px solid var(--accent); background:var(--accent); color:#fff; border-radius:6px; font:inherit; cursor:pointer; }
+  button.alt { background:transparent; color:var(--accent); }
+  button:focus-visible, input:focus-visible, textarea:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  pre { margin:0; padding:12px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow-x:auto; white-space:pre-wrap; word-break:break-word; font-size:.85rem; }
+  .status { font-weight:600; margin-bottom:8px; }
+  .ok { color:var(--ok); } .err { color:var(--err); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>DocFlow tesztoldal</h1>
+    <p>Ez az oldal POST kérést küld az n8n webhookodra, így nem kell curl.</p>
+  </header>
+
+  <section>
+    <h2>Webhook beállítás</h2>
+    <label for="url">Webhook URL (Production URL az n8n Webhook node-ból)</label>
+    <input id="url" type="url" value="http://localhost:5678/webhook/IDE-AZ-UTAD">
+    <p style="margin-top:8px;font-size:.85rem">Az n8n Webhook node → Options → Allowed Origins (CORS) mezőjébe írj <code>*</code>-ot, különben a böngésző blokkolja a kérést.</p>
+  </section>
+
+  <section>
+    <h2>1. Webshop rendelés (sikeres ág)</h2>
+    <form id="orderForm">
+      <label for="oid">Rendelés azonosító</label>
+      <input id="oid" value="ORD-1001">
+      <label for="cust">Vásárló neve</label>
+      <input id="cust" value="  Kovács Anna ">
+      <label for="email">E-mail</label>
+      <input id="email" value="anna@example.com">
+      <label for="sku">Termék (SKU)</label>
+      <input id="sku" value="TSHIRT-M">
+      <label for="qty">Darabszám</label>
+      <input id="qty" type="number" value="2" min="1">
+      <div class="row"><button type="submit">Rendelés küldése</button></div>
+    </form>
+  </section>
+
+  <section>
+    <h2>2. Kapcsolati űrlap (hibás ág)</h2>
+    <form id="contactForm">
+      <label for="cid">Azonosító (hagyd üresen, hogy hiányozzon)</label>
+      <input id="cid" value="CONTACT-2001">
+      <label for="name">Név</label>
+      <input id="name" value="Teszt Elek">
+      <label for="msg">Üzenet (töröld ki, hogy hiányozzon a data)</label>
+      <textarea id="msg">Sziasztok!</textarea>
+      <div class="row"><button type="submit">Üzenet küldése</button></div>
+    </form>
+    <div class="row">
+      <button class="alt" data-bad="missingData">Hiányzó data</button>
+      <button class="alt" data-bad="missingId">Hiányzó id</button>
+      <button class="alt" data-bad="wrongType">Rossz típus (data: 42)</button>
+      <button class="alt" data-bad="empty">Üres body</button>
+    </div>
+  </section>
+
+  <section aria-live="polite">
+    <h2>Válasz</h2>
+    <div id="status" class="status">Még nem küldtél kérést.</div>
+    <pre id="out">–</pre>
+  </section>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  async function send(payload) {
+    const status = $('status'), out = $('out');
+    status.className = 'status';
+    status.textContent = 'Küldés…';
+    out.textContent = JSON.stringify(payload, null, 2);
+    try {
+      const res = await fetch($('url').value.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const text = await res.text();
+      let body = text;
+      try { body = JSON.stringify(JSON.parse(text), null, 2); } catch (e) {}
+      status.textContent = 'HTTP ' + res.status + ' ' + res.statusText;
+      status.classList.add(res.ok ? 'ok' : 'err');
+      out.textContent = 'Elküldött:\n' + JSON.stringify(payload, null, 2) + '\n\nVálasz:\n' + (body || '(üres)');
+    } catch (e) {
+      status.textContent = 'Nem sikerült elküldeni';
+      status.classList.add('err');
+      out.textContent = 'Hiba: ' + e.message +
+        '\n\nEllenőrizd: fut-e az n8n, publikált-e a workflow, /webhook/ (nem /webhook-test/) az URL, és be van-e állítva a CORS (Allowed Origins).';
+    }
+  }
+
+  $('orderForm').addEventListener('submit', e => {
+    e.preventDefault();
+    send({
+      id: $('oid').value,
+      source: 'webshop',
+      data: {
+        customer: $('cust').value,
+        email: $('email').value,
+        items: [{ sku: $('sku').value, qty: Number($('qty').value) }]
+      }
+    });
+  });
+
+  $('contactForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const p = { source: 'contact-form' };
+    if ($('cid').value) p.id = $('cid').value;
+    if ($('msg').value) p.data = { name: $('name').value, message: $('msg').value };
+    send(p);
+  });
+
+  const bad = {
+    missingData: { id: 'CONTACT-2001' },
+    missingId: { data: { name: 'Teszt Elek', message: 'Sziasztok' } },
+    wrongType: { id: 'CONTACT-2003', data: 42 },
+    empty: {}
+  };
+  document.querySelectorAll('[data-bad]').forEach(b =>
+    b.addEventListener('click', () => send(bad[b.dataset.bad])));
+</script>
+</body>
+</html>

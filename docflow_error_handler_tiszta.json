@@ -1,0 +1,99 @@
+{
+  "name": "docflow_error_handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        176
+      ],
+      "id": "41ea6531-f1d7-4da7-af88-dbe212b9071a",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error Handler - Audit Logger\n// Input schema:  Error Trigger kimenet { execution, workflow }\n// Output schema: { task, inputs, actions, risks, result }\n\nconst e = $input.first().json;\n\nconst audit = {\n  task: `Unhandled error in workflow: ${e.workflow?.name ?? \"unknown\"}`,\n  inputs: [],  // szándékosan üres: payload/PII nem kerül a naplóba\n  actions: [\n    `Failed node: ${e.execution?.lastNodeExecuted ?? \"unknown\"}`,\n    `Execution ID: ${e.execution?.id ?? \"unknown\"}`,\n  ],\n  risks: [e.execution?.error?.message ?? \"No error message\"],\n  result: \"failed\",\n  timestamp: new Date().toISOString(),\n};\n\nreturn [{ json: audit }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        144
+      ],
+      "id": "368d2535-87be-42cb-861d-66ca1e1a5b34",
+      "name": "Audit Logger"
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=🚨 DocFlow hiba\nWorkflow: {{ $json.task }}\nNode: {{ $json.actions[0] }}\nHiba: {{ $json.risks[0] }}\nIdő: {{ $json.timestamp }}",
+        "options": {},
+        "embeds": {
+          "values": []
+        },
+        "files": {
+          "values": []
+        }
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        400,
+        160
+      ],
+      "id": "cba1c800-f827-4791-8364-d572ccd5a7ac",
+      "name": "Discord",
+      "webhookId": "REDACTED_WEBHOOK_ID",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "REDACTED_CREDENTIAL_ID",
+          "name": "Discord Webhook account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Audit Logger": {
+      "main": [
+        [
+          {
+            "node": "Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord": {
+      "main": [
+        []
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Audit Logger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "REDACTED_VERSION_ID",
+  "meta": {
+    "instanceId": "REDACTED_INSTANCE_ID"
+  },
+  "nodeGroups": [],
+  "id": "f9lbCxueO8tix77S",
+  "tags": []
+}
