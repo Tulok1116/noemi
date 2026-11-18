@@ -1,0 +1,265 @@
+{
+  "name": "docflow_error_handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        176
+      ],
+      "id": "41ea6531-f1d7-4da7-af88-dbe212b9071a",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error Handler - Audit Logger\n// Input schema:  Error Trigger output { workflow: { id, name }, execution?: { id, lastNodeExecuted, error: { message } }, trigger?: { error: { message } } }\n// Output schema: { status, httpStatus, workflowName, failedNode, executionId,\n//                  audit: { task, inputs, actions, risks, result, timestamp } }\n// Same audit record shape as the main workflow. No payload, no PII, no secrets, no stack traces.\n\nreturn $input.all().map(item => {\n  const e = item.json;\n  const exec = e.execution ?? {};\n  // Trigger-level failures (e.g. a broken trigger node) arrive under \"trigger\" instead of \"execution\"\n  const rawMessage = exec.error?.message ?? e.trigger?.error?.message ?? \"No error message\";\n\n  const workflowName = e.workflow?.name ?? \"unknown\";\n  const failedNode = exec.lastNodeExecuted ?? \"unknown\";\n  const executionId = String(exec.id ?? \"unknown\");\n\n  return {\n    json: {\n      status: \"unhandled_error\",\n      httpStatus: 500,\n      workflowName,\n      failedNode,\n      executionId,\n      audit: {\n        task: `Unhandled error in workflow: ${workflowName}`,\n        inputs: [],  // intentionally empty: payload/PII is never written to the log\n        actions: [`Failed node: ${failedNode}`, `Execution ID: ${executionId}`],\n        risks: [String(rawMessage).slice(0, 200)],  // truncated, internal detail only\n        result: \"failed\",\n        timestamp: new Date().toISOString(),\n      },\n    },\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        144
+      ],
+      "id": "368d2535-87be-42cb-861d-66ca1e1a5b34",
+      "name": "Error Audit Logger"
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=🚨 DocFlow unhandled error\nWorkflow: {{ $json.workflowName }}\nFailed node: {{ $json.failedNode }}\nError: {{ $json.audit.risks[0] }}\nExecution: {{ $json.executionId }}\nTime: {{ $json.audit.timestamp }}",
+        "options": {},
+        "embeds": {
+          "values": []
+        },
+        "files": {
+          "values": []
+        }
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        400,
+        256
+      ],
+      "id": "cba1c800-f827-4791-8364-d572ccd5a7ac",
+      "name": "Discord Alert",
+      "webhookId": "REDACTED_WEBHOOK_ID",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "REDACTED_CREDENTIAL_ID",
+          "name": "Discord Webhook account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "REDACTED_TABLE_ID",
+          "mode": "list",
+          "cachedResultName": "docflow_audit_log",
+          "cachedResultUrl": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.audit.timestamp }}",
+            "execution_id": "={{ $json.executionId }}",
+            "record_id": "",
+            "stage": "={{ $json.audit.task }}",
+            "status": "={{ $json.status }}",
+            "http_status": "={{ $json.httpStatus }}",
+            "needs_review": true,
+            "error_summary": "={{ $json.audit.risks.join('; ') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "record_id",
+              "displayName": "record_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "http_status",
+              "displayName": "http_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "needs_review",
+              "displayName": "needs_review",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "error_summary",
+              "displayName": "error_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        400,
+        32
+      ],
+      "id": "6b757cc3-0093-410f-95a7-905896781b8a",
+      "name": "Log Unhandled Error",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "## Error Handler\nRuns only for unexpected crashes of the main workflow.\n\nSetup:\n1. Add the Discord credential and pick the docflow_audit_log Data Table\n2. Publish this workflow\n3. Main workflow → Settings → Error workflow → select this workflow\n\nExpected errors (400/502) are handled inside the main workflow and do not reach this one.",
+        "height": 220,
+        "width": 480,
+        "color": 7
+      },
+      "id": "7b86da49-aaba-4852-beb8-44c091494c21",
+      "name": "Note Error handler",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        -140
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Audit Logger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Audit Logger": {
+      "main": [
+        [
+          {
+            "node": "Discord Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Unhandled Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "REDACTED_VERSION_ID",
+  "meta": {
+    "instanceId": "REDACTED_INSTANCE_ID"
+  },
+  "nodeGroups": [],
+  "id": "f9lbCxueO8tix77S",
+  "tags": []
+}
